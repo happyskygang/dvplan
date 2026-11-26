@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>히든 워드</title>
+<style>
+  :root {
+    --bg: #0f0f14; --panel: #1a1a22; --line: #2c2c38; --text: #ecebf2; --dim: #9a98a8;
+    --accent: #d4a84a; --red: #c0504b; --green: #3f9d5a; --blue: #4a7bb5;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 20px 16px 40px; }
+  h1 { margin: 0 0 4px; font-size: 24px; } h1 span { color: var(--accent); }
+  .sub { color: var(--dim); font-size: 13px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin: 12px 0; }
+  .hidden { display: none !important; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .lobby { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .lobby .card { background: #14141b; border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .lobby .card h3 { margin: 0; font-size: 16px; }
+  .code { font-size: 34px; font-weight: 800; letter-spacing: 6px; color: var(--accent); text-align: center; }
+  .members { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin: 10px 0; }
+  .member { background: #262631; border-radius: 99px; padding: 4px 12px; font-size: 14px; }
+  .member.host { background: var(--accent); color: #1a1406; font-weight: 700; }
+  .msg { text-align: center; color: var(--accent); font-weight: 600; min-height: 22px; margin: 8px 0; }
+  .err { color: #e06b66; } .ok { color: #5cc27a; }
+  button { font: inherit; cursor: pointer; border: 1px solid var(--line); background: #262631; color: var(--text);
+    border-radius: 8px; padding: 9px 14px; font-weight: 600; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: var(--accent); color: #1a1406; border-color: var(--accent); }
+  input[type=text] { font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: #111118; color: var(--text); }
+  input.word { font-size: 18px; flex: 1; min-width: 0; }
+  .status { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 14px; }
+  .status b { color: var(--accent); }
+  .scores { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .score { background: #262631; border-radius: 8px; padding: 4px 10px; font-size: 13px; }
+  .score.giver { outline: 2px solid var(--accent); }
+  .score b { color: var(--accent); margin-left: 4px; }
+  .stage-label { font-size: 12px; color: var(--dim); margin: 10px 0 4px; font-weight: 700; }
+  .wlist { display: flex; flex-direction: column; gap: 4px; }
+  .witem { display: grid; grid-template-columns: 1fr 76px 80px; gap: 8px; align-items: center; background: #14141b;
+    border-radius: 8px; padding: 7px 10px; position: relative; overflow: hidden; font-size: 15px; }
+  .witem .bar { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(212,168,74,.16); z-index: 0; }
+  .witem > span { position: relative; z-index: 1; }
+  .witem .w { font-weight: 700; }
+  .witem .p { text-align: right; font-weight: 800; color: var(--accent); }
+  .witem .rk { text-align: right; font-size: 12px; color: var(--dim); }
+  .witem.hit { background: #1d3a26; } .witem.hit .p { color: #7ee29b; }
+  .witem.me { border: 1px solid #4a6b8a; }
+  .envelope { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+  .envelope button { font-size: 18px; padding: 14px 8px; }
+  .big { font-size: 28px; font-weight: 800; color: var(--accent); text-align: center; letter-spacing: 2px; }
+  .timer { color: var(--dim); font-size: 13px; font-weight: 400; }
+  .result-list { font-size: 14px; line-height: 1.8; }
+  pre.share { font-family: inherit; background: #14141b; border-radius: 8px; padding: 10px; white-space: pre-wrap; }
+  details.rules { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px;
+    font-size: 14px; line-height: 1.65; color: #cfcdd8; margin-top: 12px; }
+  details.rules summary { cursor: pointer; font-weight: 700; color: var(--text); }
+  .loading { text-align: center; padding: 30px; color: var(--dim); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>히든 <span>워드</span></h1>
+  <div class="sub">AI가 계산한 단어 유사도를 단서로 숨겨진 단어를 맞히는 추리 게임입니다.</div>
+
+  <div class="panel loading" id="loading">AI 단어 데이터를 불러오는 중… <span id="loadPct"></span></div>
+
+  <!-- 로비 -->
+  <div class="panel hidden" id="lobby">
+    <div class="row" style="margin-bottom:12px"><span class="sub">닉네임</span><input type="text" id="nick" maxlength="12" placeholder="이름"></div>
+    <div class="lobby">
+      <div class="card"><h3>📅 오늘의 문제</h3><div class="sub">AI가 출제하는 5문제입니다. 모두 같은 문제를 풀고 점수를 겨룹니다.</div><button class="primary" id="btnDaily">시작</button></div>
+      <div class="card"><h3>🎲 연습</h3><div class="sub">AI가 무작위로 낸 5문제를 풉니다.</div><button id="btnPractice">시작</button></div>
+      <div class="card"><h3>🏠 방 만들기</h3><div class="sub">2~6명이 돌아가며 출제자가 됩니다.</div><button class="primary" id="btnHost">방 만들기</button></div>
+      <div class="card"><h3>🚪 참가하기</h3><input type="text" id="joinCode" maxlength="6" placeholder="방 코드" style="text-transform:uppercase"><button class="primary" id="btnJoin">참가</button></div>
+    </div>
+    <div class="msg" id="lobbyMsg"></div>
+  </div>
+
+  <!-- 대기실 -->
+  <div class="panel hidden" id="waiting">
+    <div class="sub" style="text-align:center">방 코드</div>
+    <div class="code" id="roomCode">------</div>
+    <div class="members" id="members"></div>
+    <div class="row" style="justify-content:center" id="hostCtl">
+      <button id="btnCopyLink">참가 링크 복사</button>
+      <button class="primary" id="btnStartMulti">게임 시작</button>
+    </div>
+    <div class="row" style="justify-content:center; margin-top:8px"><button id="btnLeave">나가기</button></div>
+    <div class="msg" id="waitMsg"></div>
+  </div>
+
+  <!-- 솔로 -->
+  <div id="solo" class="hidden">
+    <div class="panel">
+      <div class="status"><span id="soloTitle"></span><span>문제 <b id="soloQ">1</b>/5 · 단계 <b id="soloStage">1</b>/3 · 남은 기회 <b id="soloLeft">3</b></span></div>
+      <div class="scores"><span class="score">점수<b id="soloScore">0</b></span><span class="score" id="soloTrail"></span></div>
+    </div>
+    <div class="panel">
+      <div class="sub">AI 출제자의 힌트 (숨겨진 단어와의 유사도)</div>
+      <div id="soloHints"></div>
+    </div>
+    <div class="panel">
+      <form class="row" id="soloForm"><input type="text" class="word" id="soloInput" placeholder="정답이라고 생각하는 명사" autocomplete="off"><button class="primary">제출</button></form>
+      <div class="row" style="margin-top:8px"><button id="soloSkip">이번 단계 넘기기</button></div>
+      <div class="msg" id="soloMsg"></div>
+      <div class="sub">내 추측</div>
+      <div class="wlist" id="soloGuesses"></div>
+    </div>
+    <div class="panel hidden" id="soloEnd">
+      <div class="big" id="soloEndTitle"></div>
+      <pre class="share" id="soloShare"></pre>
+      <div class="row" style="justify-content:center"><button class="primary" id="soloCopy">결과 복사 (게시판 댓글용)</button><button id="soloBack">로비로</button></div>
+    </div>
+  </div>
+
+  <!-- 멀티 -->
+  <div id="multi" class="hidden">
+    <div class="panel">
+      <div class="status"><span id="mStatus"></span><span class="timer" id="mTimer"></span></div>
+      <div class="scores" id="mScores"></div>
+    </div>
+    <div class="panel" id="mMain"></div>
+    <div class="panel">
+      <div class="sub">힌트</div>
+      <div id="mHints"><div class="sub">아직 힌트가 없습니다</div></div>
+    </div>
+    <div class="panel result-list" id="mLog"></div>
+  </div>
+
+  <details class="rules">
+    <summary>규칙</summary>
+    <b>유사도</b>: 두 가지 다국어 AI 언어 모델(MiniLM, LaBSE)로 구한 단어 의미 벡터의 코사인 유사도 평균을 %로 표시합니다. 명사 약 3만 3천 개가 들어 있고, 사전에 없는 단어는 힌트로 쓸 수 없습니다.<br><br>
+    <b>솔로</b>: AI가 숨긴 단어를 맞힙니다. 단계마다 힌트가 3개씩 늘어나고, 단계마다 3번 맞혀 볼 수 있습니다. 1단계에 맞히면 3점, 2단계는 2점, 3단계는 1점입니다. 추측한 단어도 유사도와 순위(전체 단어 중 몇 번째로 가까운지)를 알려 줍니다.<br><br>
+    <b>멀티 (2~6명)</b><br>
+    · 2라운드 동안 모두 한 번씩 출제자가 됩니다. 출제자는 봉투 속 명사 5개 중 하나를 히든 워드로 고릅니다.<br>
+    · 힌트 단계: 출제자는 한 단계에 명사 힌트를 최대 10개까지 냅니다. 힌트를 낼 때마다 모두에게 유사도가 공개됩니다. 유사도가 95% 이상인 힌트가 나오면 그 단계의 힌트는 바로 끝납니다. 히든 워드를 포함하거나 히든 워드에 포함되는 단어는 쓸 수 없습니다.<br>
+    · 정답 단계: 출제자를 뺀 모두가 동시에 단어 1개를 적어 냅니다. 맞힌 사람은 1점을 얻고 그 차례가 끝납니다.<br>
+    · 아무도 맞히지 못하면 출제자가 점수를 얻고 다음 단계로 넘어갑니다. 1단계는 1점, 2단계는 2점, 3단계는 3점이고 최대 3단계까지 진행합니다.<br>
+    · 2라운드에서는 모든 점수가 2배입니다.<br>
+    · 공정성 검증: 출제자는 시작할 때 히든 워드의 봉인값(해시)만 공개합니다. 차례가 끝나면 단어를 공개하고, 모두의 브라우저가 봉인값, 힌트 유사도, 정답 판정을 다시 계산해 검증합니다.
+  </details>
+</div>
+
+<script src="vendor/peerjs.min.js"></script>
+<script src="net.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const show = (id, on = true) => $(id).classList.toggle('hidden', !on);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const norm = s => String(s || '').normalize('NFC').replace(/\s+/g, '');
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const DIM = 256;
+  $('nick').value = DVNet.nick();
+  $('nick').oninput = () => DVNet.setNick($('nick').value.trim());
+  const myName = () => $('nick').value.trim() || '나';
+
+  // ======================= 단어 데이터 =======================
+  let WORDS, VEC, NORM, IDX, ANSWERS;
+  async function loadData() {
+    const [w, v, a] = await Promise.all([
+      fetch('data/hw-words.txt').then(r => { if (!r.ok) throw new Error('words'); return r.text(); }),
+      fetch('data/hw-vecs.bin').then(async r => {
+        if (!r.ok) throw new Error('vecs');
+        const total = +r.headers.get('content-length') || 0;
+        if (!r.body || !total) return new Int8Array(await r.arrayBuffer());
+        const buf = new Uint8Array(total); let got = 0; const rd = r.body.getReader();
+        for (;;) { const { done, value } = await rd.read(); if (done) break; buf.set(value, got); got += value.length; $('loadPct').textContent = Math.round(got / total * 100) + '%'; }
+        return new Int8Array(buf.buffer);
+      }),
+      fetch('data/hw-answers.txt').then(r => { if (!r.ok) throw new Error('answers'); return r.text(); }),
+    ]);
+    WORDS = w.split('\n'); VEC = v; IDX = new Map(WORDS.map((x, i) => [x, i]));
+    NORM = new Float32Array(WORDS.length);
+    for (let i = 0; i < WORDS.length; i++) { let s = 0; const o = i * DIM; for (let k = 0; k < DIM; k++) s += VEC[o + k] * VEC[o + k]; NORM[i] = Math.sqrt(s); }
+    ANSWERS = a.split('\n').filter(x => IDX.has(x)).map(x => IDX.get(x));
+  }
+  function sim(i, j) { let s = 0; const a = i * DIM, b = j * DIM; for (let k = 0; k < DIM; k++) s += VEC[a + k] * VEC[b + k]; return s / (NORM[i] * NORM[j]); }
+  function simsTo(i) {
+    const out = new Float32Array(WORDS.length), a = i * DIM;
+    for (let j = 0; j < WORDS.length; j++) { let s = 0; const b = j * DIM; for (let k = 0; k < DIM; k++) s += VEC[a + k] * VEC[b + k]; out[j] = s / (NORM[i] * NORM[j]); }
+    return out;
+  }
+  // 비밀 단어 기준 정보: 전체 유사도와 내림차순 정렬값 (순위 계산용)
+  function secretInfo(i) {
+    const s = simsTo(i); const sorted = Float32Array.from(s.filter((_, j) => j !== i)).sort().reverse();
+    return { i, word: WORDS[i], sims: s, sorted };
+  }
+  function rankIn(info, j) { // 1 = 가장 가까움
+    const v = info.sims[j]; let lo = 0, hi = info.sorted.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (info.sorted[m] > v) lo = m + 1; else hi = m; }
+    return lo + 1;
+  }
+  const pct = s => (s * 100).toFixed(2) + '%';
+  const overlaps = (a, b) => a.includes(b) || b.includes(a);
+  function wordItem(word, s, rank, cls) {
+    const width = Math.max(0, Math.min(100, s * 100));
+    return `<div class="witem ${cls || ''}"><span class="bar" style="width:${width}%"></span><span class="w">${esc(word)}</span>` +
+      `<span class="p">${s === null ? '-' : pct(s)}</span><span class="rk">${rank ? rank.toLocaleString() + '위' : ''}</span></div>`;
+  }
+
+  // RNG
+  function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function hashStr(s) { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+  const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const dayNumber = () => { const s = new Date(2026, 0, 1), d = new Date(); return Math.floor((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - s) / 86400000) + 1; };
+  function pickDistinct(rng, arr, n) { const out = [], used = new Set(); while (out.length < n && used.size < arr.length) { const k = Math.floor(rng() * arr.length); if (!used.has(k)) { used.add(k); out.push(arr[k]); } } return out; }
+
+  // ======================= 솔로 =======================
+  let S = null;
+  function startSolo(daily) {
+    show('lobby', false); show('solo', true); show('soloEnd', false);
+    const rng = mulberry32(daily ? hashStr('hidden-word-' + todayKey()) : (Math.random() * 2 ** 32) >>> 0);
+    S = { daily, rng, qs: pickDistinct(rng, ANSWERS, 5), q: 0, score: 0, trail: [] };
+    $('soloTitle').innerHTML = daily ? `📅 오늘의 문제 <b>#${dayNumber()}</b>` : '🎲 연습';
+    startQuestion();
+  }
+  function aiHints(info, rng) {
+    // 자주 쓰는 명사(정답 후보) 중에서 비밀 단어와 가까운 순으로 순위를 매기고, 단계별 구간에서 고름
+    const pool = ANSWERS.filter(j => j !== info.i && !overlaps(WORDS[j], info.word));
+    pool.sort((a, b) => info.sims[b] - info.sims[a]);
+    const band = (lo, hi) => pickDistinct(rng, pool.slice(lo, hi), 3);
+    return [band(12, 40), band(5, 12), band(0, 5)];
+  }
+  function startQuestion() {
+    const info = secretInfo(S.qs[S.q]);
+    S.cur = { info, hints: aiHints(info, S.rng), stage: 1, left: 3, guesses: [], done: false };
+    $('soloMsg').textContent = ''; $('soloInput').value = ''; $('soloInput').disabled = false;
+    drawSolo(); $('soloInput').focus();
+  }
+  function drawSolo() {
+    const c = S.cur;
+    $('soloQ').textContent = S.q + 1; $('soloStage').textContent = c.stage; $('soloLeft').textContent = c.left;
+    $('soloScore').textContent = S.score; $('soloTrail').textContent = S.trail.join(' ') || '-';
+    let h = '';
+    for (let st = 1; st <= c.stage; st++) {
+      h += `<div class="stage-label">${st}단계 힌트</div><div class="wlist">` +
+        c.hints[st - 1].map(j => wordItem(WORDS[j], c.info.sims[j], null)).join('') + '</div>';
+    }
+    $('soloHints').innerHTML = h;
+    $('soloGuesses').innerHTML = c.guesses.slice().sort((a, b) => (b.s ?? -1) - (a.s ?? -1))
+      .map(g => wordItem(g.w, g.s, g.r, g.hit ? 'hit' : '')).join('') || '<div class="sub">아직 없습니다</div>';
+    $('soloSkip').disabled = c.done;
+  }
+  $('soloForm').onsubmit = e => {
+    e.preventDefault();
+    const c = S.cur; if (c.done) return;
+    const w = norm($('soloInput').value); if (!w) return;
+    if (c.guesses.some(g => g.w === w)) { $('soloMsg').textContent = '이미 추측한 단어입니다'; return; }
+    $('soloInput').value = '';
+    if (w === c.info.word) { c.guesses.push({ w, s: 1, r: 0, hit: true }); return finishQuestion(true); }
+    if (!IDX.has(w)) { $('soloMsg').innerHTML = `<span class="err">"${esc(w)}"은(는) 사전에 없는 단어입니다 (기회는 차감되지 않습니다)</span>`; return; }
+    const j = IDX.get(w);
+    c.guesses.push({ w, s: c.info.sims[j], r: rankIn(c.info, j) });
+    $('soloMsg').textContent = '';
+    c.left--;
+    if (c.left <= 0) nextStage(); else drawSolo();
+  };
+  $('soloSkip').onclick = () => { if (!S.cur.done) nextStage(); };
+  function nextStage() {
+    const c = S.cur;
+    if (c.stage >= 3) return finishQuestion(false);
+    c.stage++; c.left = 3;
+    $('soloMsg').textContent = `${c.stage}단계 힌트가 공개되었습니다`;
+    drawSolo();
+  }
+  async function finishQuestion(win) {
+    const c = S.cur; c.done = true; $('soloInput').disabled = true;
+    const pts = win ? 4 - c.stage : 0;
+    S.score += pts; S.trail.push(win ? ['', '🥇', '🥈', '🥉'][c.stage] : '❌');
+    const near = Array.from(c.info.sims.keys()).filter(j => j !== c.info.i).sort((a, b) => c.info.sims[b] - c.info.sims[a]).slice(0, 8).map(j => WORDS[j]);
+    $('soloMsg').innerHTML = (win ? `🎉 정답! <b>${esc(c.info.word)}</b> · +${pts}점` : `아쉽습니다. 정답: <b>${esc(c.info.word)}</b>`) +
+      `<br><span class="sub">가장 가까운 단어: ${near.map(esc).join(', ')}</span><br>`;
+    drawSolo();
+    const b = document.createElement('button'); b.className = 'primary'; b.textContent = S.q < 4 ? '다음 문제' : '결과 보기';
+    b.onclick = () => { if (S.q < 4) { S.q++; startQuestion(); } else endSolo(); };
+    $('soloMsg').appendChild(b);
+  }
+  function endSolo() {
+    $('soloEndTitle').textContent = `${S.score}점 / 15점`;
+    $('soloShare').textContent = `히든 워드 ${S.daily ? '#' + dayNumber() : '(연습)'} ${S.score}/15\n${S.trail.join(' ')}`;
+    show('soloEnd', true); $('soloMsg').textContent = '';
+    try { if (S.daily) localStorage.setItem('hw-daily-' + todayKey(), S.score); } catch (e) {}
+  }
+  $('soloCopy').onclick = async () => { try { await navigator.clipboard.writeText($('soloShare').textContent); $('soloCopy').textContent = '복사했습니다!'; } catch (e) {} };
+  $('soloBack').onclick = () => { show('solo', false); show('lobby', true); };
+  $('btnDaily').onclick = () => startSolo(true);
+  $('btnPractice').onclick = () => startSolo(false);
+
+  // ======================= 멀티: 메시지 경로 =======================
+  let room = null, client = null, isHost = false, orch = null;
+  let me = null; // 내 플레이어 id ('H' = 방장)
+  function toHost(msg) { if (isHost) setTimeout(() => orch && orch.handle('H', msg)); else if (client) client.send(msg); }
+
+  // ======================= 멀티: 방장 진행자 =======================
+  function Orchestrator(players) {
+    // players: [{id, name}]
+    const P = players.map(p => ({ ...p, score: 0, connected: true }));
+    const waiters = [];
+    const st = { giver: null, phase: null, stage: 0, hintCount: 0 };
+    const toPlayer = (id, msg) => { if (id === 'H') setTimeout(() => onClientMsg(msg)); else room.send(id, msg); };
+    const bcast = msg => P.forEach(p => { if (p.connected) toPlayer(p.id, msg); });
+    const name = id => (P.find(p => p.id === id) || {}).name || '?';
+    const scores = () => P.map(p => ({ id: p.id, name: p.name, score: p.score, connected: p.connected }));
+
+    function handle(pid, msg) {
+      if (msg.type === 'hint' && st.phase === 'hint' && pid === st.giver) {
+        if (st.hintCount >= 10) return;
+        st.hintCount++;
+        const s = Number(msg.sim);
+        bcast({ type: 'hint', stage: st.stage, word: String(msg.word).slice(0, 12), sim: s, rank: msg.rank | 0 });
+        if (s >= 0.95 || st.hintCount >= 10) handle(pid, { type: 'hintsDone', auto: true });
+        return;
+      }
+      if (msg.type === 'guess' && st.phase === 'guess' && pid !== st.giver) {
+        if (st.guesses.has(pid)) return;
+        st.guesses.set(pid, norm(msg.word).slice(0, 12));
+        bcast({ type: 'guessCount', n: st.guesses.size, total: P.filter(p => p.connected && p.id !== st.giver).length });
+      }
+      for (const w of waiters.slice()) if (w.match(pid, msg)) { waiters.splice(waiters.indexOf(w), 1); w.resolve({ pid, msg }); }
+    }
+    function waitFor(match, ms) {
+      return new Promise(res => {
+        const w = { match, resolve: v => { clearTimeout(t); res(v); } };
+        const t = setTimeout(() => { const k = waiters.indexOf(w); if (k >= 0) waiters.splice(k, 1); res(null); }, ms);
+        waiters.push(w);
+      });
+    }
+    function leave(id) {
+      const p = P.find(q => q.id === id); if (!p) return;
+      p.connected = false;
+      bcast({ type: 'log', text: `⚠ ${p.name}의 연결이 끊겼습니다` });
+      bcast({ type: 'scores', scores: scores() });
+      handle(id, { type: '__left' });
+    }
+    const giverMsg = type => (pid, m) => pid === st.giver && (m.type === type || m.type === '__left');
+
+    async function runTurn(giverId, round, mult) {
+      st.giver = giverId; st.stage = 0; st.phase = 'choose';
+      const env = pickDistinct(Math.random, ANSWERS, 5).map(j => WORDS[j]);
+      bcast({ type: 'turn', giver: giverId, giverName: name(giverId), round, mult, scores: scores() });
+      toPlayer(giverId, { type: 'envelope', words: env, deadline: Date.now() + 60000 });
+      const ch = await waitFor(giverMsg('chosen'), 65000);
+      if (!ch || ch.msg.type === '__left') { bcast({ type: 'aborted', text: `${name(giverId)}의 차례를 건너뜁니다` }); return; }
+      bcast({ type: 'committed', commit: String(ch.msg.commit || '') });
+      let solved = false;
+      for (let stage = 1; stage <= 3 && !solved; stage++) {
+        st.stage = stage; st.phase = 'hint'; st.hintCount = 0;
+        bcast({ type: 'hintPhase', stage, deadline: Date.now() + 300000 });
+        const hd = await waitFor(giverMsg('hintsDone'), 305000);
+        if (hd && hd.msg.type === '__left') { bcast({ type: 'aborted', text: `출제자 ${name(giverId)}이(가) 나가서 차례를 끝냅니다` }); return; }
+        st.phase = 'guess'; st.guesses = new Map();
+        const guessers = () => P.filter(p => p.connected && p.id !== giverId);
+        bcast({ type: 'guessPhase', stage, deadline: Date.now() + 90000, total: guessers().length });
+        const end = Date.now() + 92000;
+        while (guessers().some(p => !st.guesses.has(p.id)) && Date.now() < end) {
+          await waitFor((pid, m) => m.type === 'guess' || m.type === '__left', end - Date.now());
+        }
+        st.phase = 'judge';
+        const list = [...st.guesses.entries()].map(([pid, word]) => ({ pid, name: name(pid), word }));
+        toPlayer(giverId, { type: 'judge', stage, guesses: list });
+        const jd = await waitFor(giverMsg('judged'), 30000);
+        if (!jd || jd.msg.type === '__left') { bcast({ type: 'aborted', text: `출제자 ${name(giverId)}의 응답이 없어 차례를 끝냅니다` }); return; }
+        const results = list.map(g => {
+          const r = (jd.msg.results || []).find(x => x.pid === g.pid) || {};
+          return { ...g, correct: !!r.correct, sim: typeof r.sim === 'number' ? r.sim : null, rank: r.rank | 0 };
+        });
+        const winners = results.filter(r => r.correct);
+        let giverPts = 0;
+        if (winners.length) { winners.forEach(w => { const p = P.find(q => q.id === w.pid); if (p) p.score += 1 * mult; }); solved = true; }
+        else { giverPts = stage * mult; const g = P.find(q => q.id === giverId); g.score += giverPts; }
+        bcast({ type: 'guessResult', stage, results, giverPts, mult, scores: scores() });
+        await sleep(2500);
+      }
+      st.phase = 'reveal';
+      toPlayer(giverId, { type: 'revealReq' });
+      const rv = await waitFor(giverMsg('reveal'), 15000);
+      if (rv && rv.msg.type === 'reveal') bcast({ type: 'reveal', giver: giverId, giverName: name(giverId), word: String(rv.msg.word), salt: String(rv.msg.salt) });
+      await sleep(5000);
+    }
+    async function run() {
+      const order = P.map(p => p.id).sort(() => Math.random() - 0.5);
+      bcast({ type: 'start', players: P.map(p => ({ id: p.id, name: p.name })), order: order.map(name) });
+      for (let round = 1; round <= 2; round++) {
+        for (const gid of order) {
+          if (!P.find(p => p.id === gid).connected) continue;
+          if (P.filter(p => p.connected).length < 2) break;
+          await runTurn(gid, round, round === 2 ? 2 : 1);
+        }
+      }
+      bcast({ type: 'end', scores: scores() });
+    }
+    return { handle, leave, run };
+  }
+
+  // ======================= 멀티: 플레이어 (방장 포함) =======================
+  let M = null;
+  let timerInt = null;
+  function setDeadline(dl) {
+    clearInterval(timerInt);
+    if (!dl) { $('mTimer').textContent = ''; return; }
+    const tick = () => { const s = Math.max(0, Math.round((dl - Date.now()) / 1000)); $('mTimer').textContent = `남은 시간 ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+    tick(); timerInt = setInterval(tick, 1000);
+  }
+  function drawScores(list) {
+    if (list) M.scores = list;
+    $('mScores').innerHTML = (M.scores || []).slice().sort((a, b) => b.score - a.score)
+      .map(p => `<span class="score ${p.id === M.giver ? 'giver' : ''}" style="${p.connected === false ? 'opacity:.4' : ''}">${p.id === M.giver ? '🎤 ' : ''}${esc(p.name)}${p.id === me ? ' (나)' : ''}<b>${p.score}</b></span>`).join('');
+  }
+  function drawHints() {
+    if (!M.hints.length) { $('mHints').innerHTML = '<div class="sub">아직 힌트가 없습니다</div>'; return; }
+    let h = '';
+    for (let s = 1; s <= 3; s++) {
+      const hs = M.hints.filter(x => x.stage === s); if (!hs.length) continue;
+      h += `<div class="stage-label">${s}단계 힌트</div><div class="wlist">` + hs.map(x => wordItem(x.word, x.sim, x.rank)).join('') + '</div>';
+    }
+    $('mHints').innerHTML = h;
+  }
+  function logLine(html) { $('mLog').insertAdjacentHTML('afterbegin', `<div>${html}</div>`); }
+  const amGiver = () => M.giver === me;
+  function main(html) { $('mMain').innerHTML = html; }
+
+  async function onClientMsg(m) {
+    if (m.type === 'lobby') { $('members').innerHTML = m.names.map((n, i) => `<span class="member ${i === 0 ? 'host' : ''}">${i === 0 ? '👑 ' : ''}${esc(n)}</span>`).join(''); return; }
+    if (m.type === 'start') {
+      M = { giver: null, hints: [], scores: m.players.map(p => ({ ...p, score: 0 })), secret: null };
+      show('waiting', false); show('multi', true); $('mLog').innerHTML = '';
+      logLine(`🎬 게임 시작 · 출제 순서: ${m.order.map(esc).join(' → ')}`);
+      drawScores(); return;
+    }
+    if (!M) return;
+    switch (m.type) {
+      case 'turn':
+        M.giver = m.giver; M.hints = []; M.commit = null; M.secret = null; M.round = m.round; M.mult = m.mult; M.stage = 0; M.judgedLog = [];
+        $('mStatus').innerHTML = `라운드 <b>${m.round}</b>/2${m.mult > 1 ? ' (점수 2배)' : ''} · 출제자 <b>${esc(m.giverName)}</b>`;
+        drawScores(m.scores); drawHints(); setDeadline(null);
+        main(amGiver() ? '<div class="msg">봉투를 여는 중…</div>' : `<div class="msg">${esc(m.giverName)}이(가) 히든 워드를 고르는 중…</div>`);
+        logLine(`<b>— ${esc(m.giverName)}의 출제 (라운드 ${m.round}) —</b>`);
+        break;
+      case 'envelope': {
+        setDeadline(m.deadline);
+        main(`<div class="sub" style="margin-bottom:8px">봉투 속 명사 5개 중 하나를 히든 워드로 고르세요</div><div class="envelope">${m.words.map(w => `<button data-w="${esc(w)}">${esc(w)}</button>`).join('')}</div>`);
+        let chosen = false;
+        const choose = async w => {
+          if (chosen) return; chosen = true;
+          const info = secretInfo(IDX.get(w));
+          const salt = DVNet.randHex(16);
+          M.secret = { info, salt };
+          const commit = await DVNet.sha256(JSON.stringify({ word: w, salt }));
+          toHost({ type: 'chosen', commit });
+          main(`<div class="sub">나의 히든 워드</div><div class="big">${esc(w)}</div><div class="msg">힌트 단계를 기다리는 중…</div>`);
+        };
+        $('mMain').querySelectorAll('button[data-w]').forEach(b => b.onclick = () => choose(b.dataset.w));
+        setTimeout(() => choose(m.words[0]), Math.max(0, m.deadline - Date.now() - 1500));
+        break;
+      }
+      case 'committed': M.commit = m.commit; break;
+      case 'hintPhase':
+        M.stage = m.stage; setDeadline(m.deadline);
+        if (amGiver()) drawGiverHintUI(m.stage);
+        else main(`<div class="msg">${m.stage}단계 · 출제자가 힌트를 내는 중입니다</div>`);
+        break;
+      case 'hint':
+        M.hints.push(m); drawHints();
+        if (amGiver()) updateGiverHintCount();
+        break;
+      case 'guessPhase':
+        setDeadline(m.deadline);
+        if (amGiver()) main(`<div class="msg">${m.stage}단계 · 다른 플레이어들이 정답을 적는 중… <span id="gcount">0/${m.total}</span></div>`);
+        else drawGuessUI(m.stage, m.total);
+        break;
+      case 'guessCount': { const el = document.getElementById('gcount'); if (el) el.textContent = `${m.n}/${m.total}`; break; }
+      case 'judge': {
+        const results = m.guesses.map(g => {
+          const correct = norm(g.word) === M.secret.info.word;
+          const j = IDX.get(norm(g.word));
+          return { pid: g.pid, correct, sim: j === undefined ? null : M.secret.info.sims[j], rank: j === undefined || correct ? 0 : rankIn(M.secret.info, j) };
+        });
+        toHost({ type: 'judged', results });
+        break;
+      }
+      case 'guessResult': {
+        setDeadline(null);
+        M.judgedLog.push(m);
+        const rows = m.results.map(r => wordItem(`${r.name}: ${r.word || '(미제출)'}`, r.sim, r.rank, (r.correct ? 'hit ' : '') + (r.pid === me ? 'me' : ''))).join('');
+        const winners = m.results.filter(r => r.correct).map(r => r.name);
+        const head = winners.length ? `🎉 ${winners.map(esc).join(', ')} 정답! (+${m.mult}점)` : `아무도 맞히지 못했습니다 · 출제자 +${m.giverPts}점`;
+        main(`<div class="msg">${m.stage}단계 결과 · ${head}</div><div class="wlist">${rows || '<div class="sub">제출한 사람이 없습니다</div>'}</div>`);
+        logLine(`${m.stage}단계: ${head}`);
+        drawScores(m.scores);
+        break;
+      }
+      case 'revealReq': if (M.secret) toHost({ type: 'reveal', word: M.secret.info.word, salt: M.secret.salt }); break;
+      case 'reveal': {
+        const v = await verifyTurn(m);
+        $('mMain').insertAdjacentHTML('beforeend', `<div class="sub" style="margin-top:10px">히든 워드</div><div class="big">${esc(m.word)}</div><div class="msg">${v}</div>`);
+        logLine(`히든 워드는 <b>${esc(m.word)}</b> · ${v}`);
+        break;
+      }
+      case 'aborted': setDeadline(null); main(`<div class="msg">${esc(m.text)}</div>`); logLine(esc(m.text)); break;
+      case 'log': logLine(esc(m.text)); break;
+      case 'scores': drawScores(m.scores); break;
+      case 'end': {
+        setDeadline(null); M.giver = null; drawScores(m.scores);
+        const sorted = m.scores.slice().sort((a, b) => b.score - a.score);
+        main(`<div class="big">🏁 게임 종료</div><div class="result-list" style="text-align:center">${sorted.map((p, i) => `${i === 0 ? '🏆' : (i + 1) + '위'} ${esc(p.name)} · ${p.score}점`).join('<br>')}</div>
+          <div class="row" style="justify-content:center; margin-top:10px"><button class="primary" id="mBack">로비로</button></div>`);
+        $('mBack').onclick = () => { leaveMulti(); };
+        break;
+      }
+    }
+  }
+  function drawGiverHintUI(stage) {
+    main(`<div class="row" style="justify-content:space-between"><span class="sub">나의 히든 워드</span><span class="sub">${stage}단계 힌트 <b id="hcount">0</b>/10</span></div>
+      <div class="big">${esc(M.secret.info.word)}</div>
+      <form class="row" id="hintForm" style="margin-top:10px"><input type="text" class="word" id="hintInput" placeholder="힌트로 낼 명사" autocomplete="off"><button class="primary">힌트 내기</button></form>
+      <div class="row" style="margin-top:8px"><button id="hintDone">힌트 그만 내기 → 정답 단계로</button></div>
+      <div class="msg" id="hintMsg"></div>`);
+    updateGiverHintCount();
+    $('hintInput').focus();
+    $('hintForm').onsubmit = e => {
+      e.preventDefault();
+      const w = norm($('hintInput').value); if (!w) return;
+      const info = M.secret.info;
+      if (!IDX.has(w)) { $('hintMsg').innerHTML = `<span class="err">"${esc(w)}"은(는) 사전에 없는 명사입니다</span>`; return; }
+      if (overlaps(w, info.word)) { $('hintMsg').innerHTML = '<span class="err">히든 워드를 포함하거나 히든 워드에 포함되는 단어는 쓸 수 없습니다</span>'; return; }
+      if (M.hints.some(h => h.word === w)) { $('hintMsg').innerHTML = '<span class="err">이미 낸 힌트입니다</span>'; return; }
+      const j = IDX.get(w);
+      toHost({ type: 'hint', word: w, sim: info.sims[j], rank: rankIn(info, j) });
+      $('hintInput').value = ''; $('hintMsg').textContent = '';
+    };
+    $('hintDone').onclick = () => {
+      if (!M.hints.some(h => h.stage === stage)) { $('hintMsg').innerHTML = '<span class="err">힌트를 1개 이상 내야 합니다</span>'; return; }
+      toHost({ type: 'hintsDone' });
+      main('<div class="msg">정답 단계로 넘어갑니다…</div>');
+    };
+  }
+  function updateGiverHintCount() {
+    const el = document.getElementById('hcount'); if (!el) return;
+    const n = M.hints.filter(h => h.stage === M.stage).length; el.textContent = n;
+    if (n >= 10 || M.hints.some(h => h.stage === M.stage && h.sim >= 0.95)) {
+      const f = document.getElementById('hintForm'); if (f) f.querySelectorAll('input,button').forEach(x => x.disabled = true);
+      const d = document.getElementById('hintDone'); if (d) d.disabled = true;
+      const msg = document.getElementById('hintMsg'); if (msg) msg.textContent = '힌트 단계가 끝났습니다';
+    }
+  }
+  function drawGuessUI(stage, total) {
+    main(`<div class="sub">${stage}단계 · 히든 워드라고 생각하는 명사 1개를 적어 내세요</div>
+      <form class="row" id="guessForm" style="margin-top:8px"><input type="text" class="word" id="guessInput" placeholder="정답" autocomplete="off"><button class="primary">제출</button></form>
+      <div class="msg" id="guessMsg">제출 <span id="gcount">0/${total}</span></div>`);
+    $('guessInput').focus();
+    $('guessForm').onsubmit = e => {
+      e.preventDefault();
+      const w = norm($('guessInput').value); if (!w) return;
+      toHost({ type: 'guess', word: w });
+      $('guessForm').querySelectorAll('input,button').forEach(x => x.disabled = true);
+      $('guessMsg').innerHTML = `"${esc(w)}" 제출 완료 · 다른 사람을 기다리는 중 <span id="gcount"></span>`;
+    };
+  }
+  async function verifyTurn(m) {
+    const w = norm(m.word);
+    const j = IDX.get(w);
+    if (j === undefined) return '<span class="err">⚠ 검증 실패: 사전에 없는 단어</span>';
+    if (M.commit) {
+      const h = await DVNet.sha256(JSON.stringify({ word: m.word, salt: m.salt }));
+      if (h && h !== M.commit) return '<span class="err">⚠ 검증 실패: 시작 때 봉인한 단어와 다릅니다</span>';
+    }
+    for (const h of M.hints) {
+      const k = IDX.get(h.word);
+      if (k === undefined || Math.abs(sim(j, k) - h.sim) > 0.001) return `<span class="err">⚠ 검증 실패: 힌트 "${esc(h.word)}"의 유사도가 실제와 다릅니다</span>`;
+    }
+    for (const r of M.judgedLog.flatMap(x => x.results)) {
+      if ((norm(r.word) === w) !== r.correct) return `<span class="err">⚠ 검증 실패: ${esc(r.name)}의 정답 판정이 잘못되었습니다</span>`;
+    }
+    return '<span class="ok">✔ 검증 완료: 봉인한 단어, 힌트 유사도, 정답 판정이 모두 정확합니다</span>';
+  }
+
+  // ======================= 멀티: 로비 =======================
+  function renderMembers(names) { $('members').innerHTML = names.map((n, i) => `<span class="member ${i === 0 ? 'host' : ''}">${i === 0 ? '👑 ' : ''}${esc(n)}</span>`).join(''); }
+  $('btnHost').onclick = async () => {
+    $('lobbyMsg').textContent = '방을 만드는 중…';
+    try { room = await DVNet.createRoom('hiddenword', { maxPlayers: 6 }); }
+    catch (e) { $('lobbyMsg').innerHTML = `<span class="err">${esc(e.message)}</span>`; return; }
+    isHost = true; me = 'H';
+    $('lobbyMsg').textContent = '';
+    show('lobby', false); show('waiting', true); show('hostCtl', true);
+    $('roomCode').textContent = room.code; $('waitMsg').textContent = '참가자를 기다리는 중…';
+    const update = () => { const names = [myName(), ...[...room.members.values()].map(m => m.name)]; renderMembers(names); room.broadcast({ type: 'lobby', names }); };
+    room.on('join', (id) => { room.send(id, { type: 'you', id }); update(); });
+    room.on('leave', id => { if (orch) orch.leave(id); else update(); });
+    room.on('msg', (id, m) => { if (orch) orch.handle(id, m); });
+    update();
+  };
+  $('btnCopyLink').onclick = async () => { const url = DVNet.joinLink($('roomCode').textContent); try { await navigator.clipboard.writeText(url); $('waitMsg').textContent = '링크를 복사했습니다'; } catch (e) { $('waitMsg').textContent = url; } };
+  $('btnStartMulti').onclick = () => {
+    if (!room) return;
+    if (room.members.size < 1) { $('waitMsg').innerHTML = '<span class="err">2명 이상이어야 시작할 수 있습니다</span>'; return; }
+    const players = [{ id: 'H', name: myName() }, ...[...room.members.entries()].map(([id, m]) => ({ id, name: m.name }))];
+    const used = new Set(); players.forEach(p => { let n = p.name, k = 2; while (used.has(n)) n = `${p.name}${k++}`; p.name = n; used.add(n); });
+    room.locked = true;
+    orch = Orchestrator(players);
+    orch.run();
+  };
+  function leaveMulti() {
+    if (room) { room.close(); room = null; }
+    if (client) { client.close(); client = null; }
+    orch = null; M = null; isHost = false; setDeadline(null);
+    show('multi', false); show('waiting', false); show('lobby', true);
+  }
+  $('btnLeave').onclick = leaveMulti;
+  async function join(code) {
+    $('lobbyMsg').textContent = '연결 중…';
+    try { client = await DVNet.joinRoom('hiddenword', code, myName()); }
+    catch (e) { $('lobbyMsg').innerHTML = `<span class="err">${esc(e.message)}</span>`; return; }
+    isHost = false; me = client.id;
+    $('lobbyMsg').textContent = '';
+    show('lobby', false); show('waiting', true); show('hostCtl', false);
+    $('roomCode').textContent = code.toUpperCase(); $('waitMsg').textContent = '방장이 게임을 시작하기를 기다리는 중…';
+    client.on('msg', onClientMsg);
+    client.on('close', () => {
+      setDeadline(null);
+      const target = M ? 'mMain' : 'waitMsg';
+      $(target).insertAdjacentHTML('beforeend', '<div class="msg err">방장과 연결이 끊겼습니다</div>');
+      if (M) { main('<div class="msg err">방장과 연결이 끊겼습니다</div><div class="row" style="justify-content:center"><button id="mBack2">로비로</button></div>'); $('mBack2').onclick = leaveMulti; }
+    });
+  }
+  $('btnJoin').onclick = () => join($('joinCode').value);
+  $('joinCode').onkeydown = e => { if (e.key === 'Enter') join($('joinCode').value); };
+
+  // ======================= 시작 =======================
+  loadData().then(() => {
+    show('loading', false); show('lobby', true);
+    const q = new URLSearchParams(location.search).get('join');
+    if (q) { $('joinCode').value = q; join(q); }
+  }).catch(e => { $('loading').innerHTML = `<span class="err">단어 데이터를 불러오지 못했습니다 (${esc(e.message)}). data/ 폴더를 확인하세요</span>`; });
+})();
+</script>
+</body>
+</html>

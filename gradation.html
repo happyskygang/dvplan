@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>그라데이션</title>
+<style>
+  :root {
+    --bg: #0f0f14; --panel: #1a1a22; --line: #2c2c38; --text: #ecebf2; --dim: #9a98a8;
+    --accent: #d4a84a; --red: #c0504b; --green: #3f9d5a;
+    --cB: #26262c; --cS: #8f949c; --cG: #c9a227; --cW: #f2f0ea;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 20px 16px 40px; }
+  h1 { margin: 0 0 4px; font-size: 24px; } h1 span { color: var(--accent); }
+  .sub { color: var(--dim); font-size: 13px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin: 12px 0; }
+  .ptitle { font-weight: 700; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .bins { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .bin { border-radius: 10px; padding: 6px 2px 8px; text-align: center; border: 2px solid transparent; }
+  .bin .lbl { font-size: 11px; font-weight: 700; opacity: .8; }
+  .bin .num { font-size: clamp(20px, 6vw, 30px); font-weight: 800; min-height: 38px; display: flex; align-items: center; justify-content: center; }
+  .bin.B { background: var(--cB); color: #eee; border-color: #444; }
+  .bin.S { background: var(--cS); color: #111; }
+  .bin.G { background: var(--cG); color: #1a1406; }
+  .bin.W { background: var(--cW); color: #111; }
+  .bin.used { opacity: .25; }
+  .bin.pick { cursor: pointer; } .bin.pick:hover { outline: 3px solid var(--accent); }
+  .bin select { width: 100%; font: inherit; font-size: 18px; font-weight: 800; text-align: center; background: rgba(255,255,255,.85);
+    color: #111; border: none; border-radius: 6px; padding: 4px 0; }
+  .score { font-size: 28px; font-weight: 800; text-align: center; }
+  .score span { color: var(--accent); }
+  .arena { display: grid; grid-template-columns: 1fr auto 1fr; gap: 14px; align-items: center; text-align: center; margin-top: 10px; }
+  .slot { height: 110px; border: 2px dashed var(--line); border-radius: 12px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 4px; }
+  .slot .big { font-size: 40px; font-weight: 800; }
+  .slot.B { background: var(--cB); border: 2px solid #444; } .slot.S { background: var(--cS); color: #111; border-style: solid; }
+  .slot.G { background: var(--cG); color: #1a1406; border-style: solid; } .slot.W { background: var(--cW); color: #111; border-style: solid; }
+  .msg { text-align: center; color: var(--accent); font-weight: 600; min-height: 22px; margin: 8px 0; }
+  button { font: inherit; cursor: pointer; border: 1px solid var(--line); background: #262631; color: var(--text);
+    border-radius: 8px; padding: 9px 14px; font-weight: 600; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #1a1406; border-color: var(--accent); }
+  button:disabled { opacity: .4; cursor: default; }
+  input[type=text] { font: inherit; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--line); background: #111118; color: var(--text); }
+  .hint { font-size: 13px; color: var(--dim); }
+  .err { color: var(--red); }
+  .ok { color: var(--green); }
+  .hist { font-size: 13px; color: #cfcdd8; line-height: 1.7; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .lobby { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+  .lobby .card { background: #14141b; border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .lobby .card h3 { margin: 0; font-size: 16px; }
+  .code { font-size: 34px; font-weight: 800; letter-spacing: 6px; color: var(--accent); text-align: center; }
+  .status { font-size: 13px; padding: 6px 10px; border-radius: 8px; background: #14141b; border: 1px solid var(--line); display: inline-block; }
+  .hidden { display: none !important; }
+  details.rules { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px;
+    font-size: 14px; line-height: 1.65; color: #cfcdd8; }
+  details.rules summary { cursor: pointer; font-weight: 700; color: var(--text); }
+  select.diff { font: inherit; background: #111118; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span>그라데이션</span></h1>
+  <div class="sub">1:1 숫자 배치 심리전입니다. 상대에게는 통의 색만 보이고 위치는 보이지 않습니다.</div>
+
+  <!-- 로비 -->
+  <div class="panel" id="lobby">
+    <div class="row" style="margin-bottom:12px">
+      <span class="hint">닉네임</span><input type="text" id="nick" maxlength="12" placeholder="이름">
+    </div>
+    <div class="lobby">
+      <div class="card">
+        <h3>🤖 AI와 연습</h3>
+        <div class="hint">혼자서 규칙을 익힙니다.</div>
+        <select class="diff" id="diff"><option value="easy">쉬움</option><option value="hard" selected>어려움</option></select>
+        <button class="primary" id="btnAI">연습 시작</button>
+      </div>
+      <div class="card">
+        <h3>🏠 방 만들기</h3>
+        <div class="hint">방 코드를 만들어 상대에게 알려줍니다.</div>
+        <button class="primary" id="btnHost">방 만들기</button>
+      </div>
+      <div class="card">
+        <h3>🚪 참가하기</h3>
+        <div class="hint">상대에게 받은 방 코드를 입력합니다.</div>
+        <input type="text" id="joinCode" maxlength="6" placeholder="예: K7P2QX" style="text-transform:uppercase">
+        <button class="primary" id="btnJoin">참가</button>
+      </div>
+    </div>
+    <div class="msg" id="lobbyMsg"></div>
+  </div>
+
+  <!-- 대기실 -->
+  <div class="panel hidden" id="waiting">
+    <div class="hint" style="text-align:center">방 코드를 상대에게 알려주세요</div>
+    <div class="code" id="roomCode">------</div>
+    <div class="row" style="justify-content:center">
+      <button id="btnCopyLink">참가 링크 복사</button>
+      <button id="btnCancel">취소</button>
+    </div>
+    <div class="msg" id="waitMsg">상대를 기다리는 중…</div>
+  </div>
+
+  <div id="connBar" class="hidden" style="margin-top:8px"><span class="status" id="connStatus"></span></div>
+
+  <!-- 배치 -->
+  <div class="panel hidden" id="setupPanel">
+    <div class="ptitle"><span>① 숫자 배치</span><span class="hint" id="vsLabel"></span></div>
+    <div class="bins" id="setupBins"></div>
+    <div class="msg" id="setupMsg"></div>
+    <div class="row" style="justify-content:center">
+      <button id="btnRand">무작위 배치</button>
+      <button class="primary" id="btnReady">배치 완료</button>
+    </div>
+  </div>
+
+  <!-- 경기 -->
+  <div id="playArea" class="hidden">
+    <div class="panel">
+      <div class="score"><span id="meName">나</span> <span id="myScore">0</span> : <span id="oppScore">0</span> <span id="oppName2">상대</span></div>
+      <div class="hint" style="text-align:center" id="roundInfo"></div>
+      <div class="panel" style="background:#121218">
+        <div class="ptitle"><span id="oppBinsTitle">상대의 통 (색만 보임)</span></div>
+        <div class="bins" id="oppBins"></div>
+      </div>
+      <div class="arena">
+        <div><div class="hint">나</div><div class="slot" id="mySlot"></div></div>
+        <div style="font-weight:800; color:var(--dim)">VS</div>
+        <div><div class="hint" id="oppLabel">상대</div><div class="slot" id="oppSlot"></div></div>
+      </div>
+      <div class="msg" id="msg"></div>
+      <div class="ptitle"><span>내 통</span><span class="hint" id="pickHint"></span></div>
+      <div class="bins" id="myBins"></div>
+      <div class="row" style="justify-content:center; margin-top:12px">
+        <button class="primary hidden" id="btnNext">다음</button>
+        <button class="hidden" id="btnLobby">로비로</button>
+      </div>
+      <div class="msg" id="verifyMsg"></div>
+    </div>
+    <div class="panel hist" id="hist"></div>
+  </div>
+
+  <details class="rules">
+    <summary>규칙</summary>
+    · 색이 다른 통 7개가 있습니다. 순서는 <b>B1 · S1 · G1 · W · G2 · S2 · B2</b>이고, 같은 알파벳의 통은 색이 같습니다.<br>
+    · 0~9 숫자 큐브는 숫자마다 2개씩, 모두 20개입니다. 통마다 1개씩 넣되 <b>왼쪽에서 오른쪽으로 오름차순</b>이어야 하고 <b>합은 30 이하</b>여야 합니다.<br>
+    · 7라운드 동안 선 플레이어가 통 1개를 내면 상대도 통 1개를 냅니다. 상대에게는 통의 <b>색만</b> 보이고 어느 위치의 통인지는 보이지 않습니다.<br>
+    · 숫자를 공개해 더 큰 쪽이 1점을 얻고, 이긴 사람이 다음 라운드의 선이 됩니다. 비기면 점수도 선도 그대로입니다.<br>
+    · 7라운드 뒤 점수가 높은 쪽이 이깁니다. 점수가 같으면 다시 배치해서 재경기합니다.<br>
+    · 온라인 대전에서는 시작할 때 서로 배치의 '봉인값(해시)'을 주고받고, 경기가 끝나면 실제 배치를 공개해 중간에 바꾸지 않았는지 자동으로 검증합니다.
+  </details>
+</div>
+
+<script src="vendor/peerjs.min.js"></script>
+<script src="net.js"></script>
+<script>
+(() => {
+  // 사내 PeerJS 서버 설정은 net.js 의 PEER_CONFIG 한 곳에서 바꿉니다
+  const PEER_CONFIG = window.DVNet ? DVNet.PEER_CONFIG : {};
+  const ID_PREFIX = 'dvplan-gradation-';
+
+  const $ = id => document.getElementById(id);
+  const show = (id, on = true) => $(id).classList.toggle('hidden', !on);
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const LABELS = ['B1', 'S1', 'G1', 'W', 'G2', 'S2', 'B2'];
+  const COLOR = ['B', 'S', 'G', 'W', 'G', 'S', 'B'];
+  const COLOR_NAME = { B: '검정', S: '은색', G: '금색', W: '흰색' };
+  const store = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+  const load = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+
+  // ---------- 가능한 모든 배치 ----------
+  const ALL = [];
+  (function gen(arr, min, s) {
+    if (arr.length === 7) { ALL.push(arr.slice()); return; }
+    for (let v = min; v <= 9; v++) {
+      if (s + v * (7 - arr.length) > 30) break;
+      const n = arr.length;
+      if (n >= 2 && arr[n - 1] === v && arr[n - 2] === v) continue;
+      arr.push(v); gen(arr, v, s + v); arr.pop();
+    }
+  })([], 0, 0);
+  const setupErrors = a => {
+    const errs = [];
+    if (!Array.isArray(a) || a.length !== 7 || !a.every(v => Number.isInteger(v) && v >= 0 && v <= 9)) return ['형식 오류'];
+    if (!a.every((v, i) => i === 0 || v >= a[i - 1])) errs.push('왼쪽에서 오른쪽으로 오름차순이어야 합니다');
+    if (a.reduce((x, y) => x + y, 0) > 30) errs.push('합이 30을 넘었습니다');
+    const over = [...Array(10).keys()].filter(d => a.filter(v => v === d).length > 2);
+    if (over.length) errs.push(`숫자 ${over.join(', ')}은(는) 2개까지만 쓸 수 있습니다`);
+    return errs;
+  };
+
+  // ---------- 커밋 (SHA-256) ----------
+  async function sha256(text) {
+    if (!(window.crypto && crypto.subtle)) return null;
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  const randHex = n => [...crypto.getRandomValues(new Uint8Array(n))].map(b => b.toString(16).padStart(2, '0')).join('');
+
+  // ---------- 상태 ----------
+  let mySetup = [0, 1, 3, 4, 5, 8, 9];
+  let opp = null;       // 상대 어댑터 (AI 또는 온라인)
+  let my, myUsed, oppUsedColors, score, iLead, rnd, history, oppPlays, salt, busy;
+  let nick = load('dvplan-nick') || '';
+  $('nick').value = nick;
+  $('nick').oninput = () => { nick = $('nick').value.trim(); store('dvplan-nick', nick); };
+  const myName = () => nick || '나';
+
+  // ================= AI 상대 =================
+  function makeAI(difficulty) {
+    const pool = ALL.filter(a => a[6] >= 6);
+    let ai, aiUsed, seen, pendingIdx;
+    function consistentSetups() {
+      return ALL.filter(a => {
+        for (const c of ['B', 'S', 'G', 'W']) {
+          const s = seen.filter(r => r.color === c).map(r => r.v);
+          if (!s.length) continue;
+          const vals = COLOR.map((cc, i) => cc === c ? a[i] : null).filter(v => v !== null);
+          if (s.length > vals.length) return false;
+          if (s.length === vals.length) { if (s.slice().sort().join() !== vals.slice().sort().join()) return false; }
+          else if (!vals.includes(s[0])) return false;
+        }
+        return true;
+      });
+    }
+    function mySamples(color) {
+      const out = [];
+      consistentSetups().forEach(a => {
+        const usedIdx = new Set();
+        seen.forEach(r => { const j = COLOR.findIndex((c, k) => c === r.color && a[k] === r.v && !usedIdx.has(k)); if (j >= 0) usedIdx.add(j); });
+        COLOR.forEach((c, i) => { if ((!color || c === color) && !usedIdx.has(i)) out.push(a[i]); });
+      });
+      return out;
+    }
+    function choose(asLeader, myColor) {
+      const avail = ai.map((v, i) => i).filter(i => !aiUsed[i]);
+      if (difficulty === 'easy') return avail[Math.floor(Math.random() * avail.length)];
+      const sorted = avail.slice().sort((a, b) => ai[a] - ai[b]);
+      if (!asLeader) {
+        const s = mySamples(myColor);
+        const pWin = v => s.filter(x => v > x).length / s.length;
+        const pTie = v => s.filter(x => v === x).length / s.length;
+        const good = sorted.find(i => pWin(ai[i]) >= 0.8); if (good !== undefined) return good;
+        const ok = sorted.find(i => pWin(ai[i]) >= 0.5 && ai[i] < 9); if (ok !== undefined && Math.random() < 0.6) return ok;
+        const tie = sorted.find(i => pWin(ai[i]) + pTie(ai[i]) >= 0.9); if (tie !== undefined && Math.random() < 0.3) return tie;
+        return sorted[0];
+      }
+      const r = Math.random();
+      if (r < 0.3) return sorted[0];
+      if (r < 0.75) return sorted[Math.floor(sorted.length / 2)];
+      return sorted[sorted.length - 1 - Math.floor(Math.random() * Math.min(2, sorted.length))];
+    }
+    return {
+      name: 'AI', online: false,
+      async ready() { ai = pool[Math.floor(Math.random() * pool.length)].slice(); aiUsed = Array(7).fill(false); seen = []; await sleep(300); return { iLead: Math.random() < 0.5 }; },
+      async leadColor() { await sleep(700); pendingIdx = choose(true); aiUsed[pendingIdx] = true; return COLOR[pendingIdx]; },
+      async respond(myColor) { await sleep(800); const i = choose(false, myColor); aiUsed[i] = true; return { color: COLOR[i], value: ai[i] }; },
+      async reveal(myFollow) { seen.push(myFollow); return ai[pendingIdx]; },
+      tellReveal(color, value) { seen.push({ color, v: value }); },
+      notePlay(color, value) { if (color) seen.push({ color, v: value }); },
+      async finish() { return { setup: ai, verified: true }; },
+      close() {},
+    };
+  }
+
+  // ================= 온라인 상대 (PeerJS) =================
+  function makeOnline(conn, peer, isHost) {
+    const queue = [], waiters = [];
+    let closed = false, oppName = '상대', oppCommit = null;
+    const adapter = {
+      name: '상대', online: true,
+      send(msg) { try { conn.send(msg); } catch (e) {} },
+      recv(type) {
+        const i = queue.findIndex(m => m.type === type);
+        if (i >= 0) return Promise.resolve(queue.splice(i, 1)[0]);
+        return new Promise((resolve, reject) => waiters.push({ type, resolve, reject }));
+      },
+      async ready(commit) {
+        adapter.send({ type: 'ready', commit, name: myName() });
+        const m = await adapter.recv('ready');
+        oppCommit = m.commit; oppName = (m.name || '상대').slice(0, 12); adapter.name = oppName;
+        if (isHost) { const hostLeads = Math.random() < 0.5; adapter.send({ type: 'start', hostLeads }); return { iLead: hostLeads }; }
+        const s = await adapter.recv('start'); return { iLead: !s.hostLeads };
+      },
+      async leadColor() { return (await adapter.recv('lead')).color; },
+      async respond(myColor) { adapter.send({ type: 'lead', color: myColor }); const m = await adapter.recv('follow'); return { color: m.color, value: m.value }; },
+      async reveal(myFollow) { adapter.send({ type: 'follow', color: myFollow.color, value: myFollow.v }); return (await adapter.recv('reveal')).value; },
+      tellReveal(color, value) { adapter.send({ type: 'reveal', value }); },
+      notePlay() {},
+      async finish(setup, mySalt) {
+        adapter.send({ type: 'open', setup, salt: mySalt });
+        const m = await adapter.recv('open');
+        const errs = setupErrors(m.setup);
+        let verified = errs.length === 0, reason = errs.join(', ');
+        if (verified && oppCommit) {
+          const h = await sha256(JSON.stringify({ setup: m.setup, salt: m.salt }));
+          if (h && h !== oppCommit) { verified = false; reason = '시작 때 봉인한 배치와 다릅니다'; }
+        }
+        if (verified) {
+          const used = new Set();
+          for (const p of oppPlays) {
+            const j = COLOR.findIndex((c, k) => c === p.color && m.setup[k] === p.v && !used.has(k));
+            if (j < 0) { verified = false; reason = `공개한 숫자(${COLOR_NAME[p.color]} ${p.v})가 배치와 맞지 않습니다`; break; }
+            used.add(j);
+          }
+        }
+        return { setup: m.setup, verified, reason, noCrypto: !oppCommit };
+      },
+      close() { closed = true; try { conn.close(); } catch (e) {} try { peer.destroy(); } catch (e) {} },
+    };
+    conn.on('data', m => {
+      if (!m || typeof m.type !== 'string') return;
+      const i = waiters.findIndex(w => w.type === m.type);
+      if (i >= 0) waiters.splice(i, 1)[0].resolve(m); else queue.push(m);
+    });
+    conn.on('close', () => { if (!closed) setConn('❌ 상대와 연결이 끊겼습니다', 'err'); });
+    conn.on('error', () => setConn('❌ 연결 오류가 발생했습니다', 'err'));
+    return adapter;
+  }
+
+  function setConn(text, cls) {
+    show('connBar', true);
+    $('connStatus').innerHTML = `<span class="${cls || ''}">${text}</span>`;
+  }
+
+  const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const newCode = () => [...crypto.getRandomValues(new Uint8Array(6))].map(b => CODE_CHARS[b % CODE_CHARS.length]).join('');
+
+  let hostPeer = null;
+  function hostRoom() {
+    if (typeof Peer === 'undefined') { $('lobbyMsg').innerHTML = '<span class="err">PeerJS를 불러오지 못했습니다 (vendor/peerjs.min.js 확인)</span>'; return; }
+    const code = newCode();
+    show('lobby', false); show('waiting', true);
+    $('roomCode').textContent = code; $('waitMsg').textContent = '방을 만드는 중…';
+    hostPeer = new Peer(ID_PREFIX + code, PEER_CONFIG);
+    hostPeer.on('open', () => { $('waitMsg').textContent = '상대를 기다리는 중…'; });
+    hostPeer.on('error', e => {
+      if (e.type === 'unavailable-id') { hostPeer.destroy(); hostRoom(); return; }
+      $('waitMsg').innerHTML = `<span class="err">연결 실패: ${e.type}. 사내 방화벽에서 WebRTC가 막혀 있을 수 있습니다.</span>`;
+    });
+    hostPeer.on('connection', conn => {
+      conn.on('open', () => {
+        opp = makeOnline(conn, hostPeer, true);
+        hostPeer.off && hostPeer.off('connection');
+        setConn('🟢 상대와 연결되었습니다', 'ok');
+        show('waiting', false); gotoSetup();
+      });
+    });
+  }
+  function joinRoom(code) {
+    if (typeof Peer === 'undefined') { $('lobbyMsg').innerHTML = '<span class="err">PeerJS를 불러오지 못했습니다 (vendor/peerjs.min.js 확인)</span>'; return; }
+    code = code.trim().toUpperCase();
+    if (code.length !== 6) { $('lobbyMsg').innerHTML = '<span class="err">6자리 방 코드를 입력하세요</span>'; return; }
+    $('lobbyMsg').textContent = '연결 중…';
+    const peer = new Peer(PEER_CONFIG);
+    peer.on('error', e => {
+      $('lobbyMsg').innerHTML = e.type === 'peer-unavailable'
+        ? '<span class="err">방을 찾을 수 없습니다. 코드를 확인하세요</span>'
+        : `<span class="err">연결 실패: ${e.type}</span>`;
+    });
+    peer.on('open', () => {
+      const conn = peer.connect(ID_PREFIX + code, { reliable: true });
+      conn.on('open', () => {
+        opp = makeOnline(conn, peer, false);
+        setConn('🟢 상대와 연결되었습니다', 'ok');
+        $('lobbyMsg').textContent = '';
+        show('lobby', false); gotoSetup();
+      });
+    });
+  }
+
+  // ================= 배치 화면 =================
+  function gotoSetup() {
+    show('setupPanel', true); show('playArea', false);
+    $('vsLabel').textContent = opp.online ? '온라인 대전' : `AI 연습 (${$('diff').value === 'easy' ? '쉬움' : '어려움'})`;
+    $('btnReady').disabled = false; $('btnRand').disabled = false;
+    renderSetup();
+  }
+  function renderSetup() {
+    const box = $('setupBins'); box.innerHTML = '';
+    LABELS.forEach((l, i) => {
+      const d = document.createElement('div'); d.className = 'bin ' + COLOR[i];
+      const sel = document.createElement('select');
+      for (let v = 0; v <= 9; v++) { const o = document.createElement('option'); o.value = v; o.textContent = v; if (v === mySetup[i]) o.selected = true; sel.appendChild(o); }
+      sel.onchange = () => { mySetup[i] = +sel.value; checkSetup(); };
+      d.innerHTML = `<div class="lbl">${l}</div>`; d.appendChild(sel);
+      box.appendChild(d);
+    });
+    checkSetup();
+  }
+  function checkSetup() {
+    const errs = setupErrors(mySetup);
+    $('setupMsg').innerHTML = errs.length ? `<span class="err">${errs.join(' · ')}</span>` : `합계 ${mySetup.reduce((a, b) => a + b, 0)} / 30 · 배치 가능`;
+    $('btnReady').disabled = errs.length > 0;
+  }
+  $('btnRand').onclick = () => { mySetup = ALL[Math.floor(Math.random() * ALL.length)].slice(); renderSetup(); };
+  $('btnReady').onclick = async () => {
+    $('btnReady').disabled = true; $('btnRand').disabled = true;
+    $('setupBins').querySelectorAll('select').forEach(s => s.disabled = true);
+    my = mySetup.slice();
+    salt = window.crypto && crypto.getRandomValues ? randHex(16) : String(Math.random());
+    const commit = await sha256(JSON.stringify({ setup: my, salt }));
+    $('setupMsg').textContent = opp.online ? '상대가 배치를 마치기를 기다리는 중…' : '';
+    const r = await opp.ready(commit);
+    startMatch(r.iLead);
+  };
+
+  // ================= 경기 =================
+  function startMatch(lead) {
+    myUsed = Array(7).fill(false); oppUsedColors = []; score = [0, 0]; iLead = lead; rnd = 0;
+    history = []; oppPlays = []; busy = false;
+    show('setupPanel', false); show('playArea', true);
+    show('btnNext', false); show('btnLobby', false); $('verifyMsg').textContent = '';
+    $('meName').textContent = myName(); $('oppName2').textContent = opp.name; $('oppLabel').textContent = opp.name;
+    $('oppBinsTitle').textContent = `${opp.name}의 통 (색만 보임)`;
+    nextRound();
+  }
+
+  function renderPlay(state, oppSetup) {
+    $('myScore').textContent = score[0]; $('oppScore').textContent = score[1];
+    $('roundInfo').textContent = rnd <= 7 ? `라운드 ${rnd} / 7 · 선: ${iLead ? myName() : opp.name}` : '경기 종료';
+    const ob = $('oppBins'); ob.innerHTML = '';
+    // 상대 통: 사용한 색은 해당 색 통 하나를 흐리게 (위치는 알 수 없으므로 표시만)
+    const usedCount = {}; oppUsedColors.forEach(c => usedCount[c] = (usedCount[c] || 0) + 1);
+    const shown = {};
+    COLOR.forEach((c, i) => {
+      shown[c] = (shown[c] || 0) + 1;
+      const isUsed = !oppSetup && shown[c] <= (usedCount[c] || 0);
+      const d = document.createElement('div'); d.className = 'bin ' + c + (isUsed ? ' used' : '');
+      d.innerHTML = `<div class="lbl">${oppSetup ? LABELS[i] : COLOR_NAME[c]}</div><div class="num">${oppSetup ? oppSetup[i] : '?'}</div>`;
+      ob.appendChild(d);
+    });
+    const box = $('myBins'); box.innerHTML = '';
+    LABELS.forEach((l, i) => {
+      const d = document.createElement('div'); d.className = 'bin ' + COLOR[i] + (myUsed[i] ? ' used' : '');
+      if (state === 'pick' && !myUsed[i]) { d.classList.add('pick'); d.onclick = () => onPick(i); }
+      d.innerHTML = `<div class="lbl">${l}</div><div class="num">${my[i]}</div>`;
+      box.appendChild(d);
+    });
+    $('hist').innerHTML = '<b>기록</b><br>' + (history.length ? history.join('<br>') : '-');
+  }
+  function setSlot(id, color, text, sub) {
+    const s = $(id); s.className = 'slot' + (color ? ' ' + color : '');
+    s.innerHTML = color ? `<div class="big">${text}</div><div class="hint" style="color:inherit">${sub || ''}</div>` : '';
+  }
+
+  let pickResolver = null;
+  const waitPick = () => new Promise(r => { pickResolver = r; });
+  function onPick(i) { if (!pickResolver) return; const r = pickResolver; pickResolver = null; r(i); }
+
+  async function nextRound() {
+    rnd++;
+    setSlot('mySlot'); setSlot('oppSlot'); show('btnNext', false);
+    if (rnd > 7) return endMatch();
+    let myIdx, oppColor, oppValue;
+    if (iLead) {
+      $('msg').textContent = '선입니다. 낼 통을 고르세요'; $('pickHint').textContent = '클릭해서 내기';
+      renderPlay('pick');
+      myIdx = await waitPick(); myUsed[myIdx] = true; $('pickHint').textContent = '';
+      setSlot('mySlot', COLOR[myIdx], my[myIdx], LABELS[myIdx]);
+      $('msg').textContent = `${opp.name}이(가) 고르는 중…`; renderPlay('wait');
+      const r = await opp.respond(COLOR[myIdx]);
+      oppColor = r.color; oppValue = r.value;
+      opp.tellReveal(COLOR[myIdx], my[myIdx]);
+    } else {
+      $('msg').textContent = `${opp.name}이(가) 통을 고르는 중…`; $('pickHint').textContent = '';
+      renderPlay('wait');
+      oppColor = await opp.leadColor();
+      setSlot('oppSlot', oppColor, '?', COLOR_NAME[oppColor] + ' 통');
+      $('msg').textContent = `${opp.name}이(가) ${COLOR_NAME[oppColor]} 통을 냈습니다. 낼 통을 고르세요`;
+      $('pickHint').textContent = '클릭해서 내기';
+      renderPlay('pick');
+      myIdx = await waitPick(); myUsed[myIdx] = true; $('pickHint').textContent = '';
+      setSlot('mySlot', COLOR[myIdx], my[myIdx], LABELS[myIdx]);
+      renderPlay('wait');
+      oppValue = await opp.reveal({ color: COLOR[myIdx], v: my[myIdx] });
+    }
+    oppUsedColors.push(oppColor); oppPlays.push({ color: oppColor, v: oppValue });
+    setSlot('oppSlot', oppColor, oppValue, COLOR_NAME[oppColor] + ' 통');
+    const a = my[myIdx], b = oppValue;
+    let res;
+    if (a > b) { score[0]++; iLead = true; res = `${myName()} 1점`; }
+    else if (b > a) { score[1]++; iLead = false; res = `${opp.name} 1점`; }
+    else res = '무승부 (점수·선 유지)';
+    history.push(`R${rnd}: ${myName()} ${LABELS[myIdx]}(${a}) vs ${opp.name} ${COLOR_NAME[oppColor]}(${b}) → ${res}`);
+    $('msg').textContent = res;
+    renderPlay('wait');
+    if (opp.online) { await sleep(1800); nextRound(); }
+    else { show('btnNext', true); $('btnNext').textContent = rnd < 7 ? '다음 라운드' : '결과 보기'; $('btnNext').onclick = () => nextRound(); }
+  }
+
+  async function endMatch() {
+    renderPlay('end');
+    const [m, o] = score;
+    $('msg').textContent = m > o ? `🏆 ${m}:${o}로 승리했습니다!` : o > m ? `💀 ${m}:${o}로 패배했습니다` : `${m}:${o} 동점입니다. 다시 배치해서 재경기합니다`;
+    $('verifyMsg').textContent = '상대 배치를 확인하는 중…';
+    const r = await opp.finish(my, salt);
+    renderPlay('end', r.setup);
+    if (opp.online) {
+      $('verifyMsg').innerHTML = r.verified
+        ? `<span class="ok">✔ 검증 완료: 상대 배치가 시작 때 봉인한 값과 같습니다${r.noCrypto ? ' (해시 미지원 환경이라 일부만 검증)' : ''}</span>`
+        : `<span class="err">⚠ 검증 실패: ${r.reason}</span>`;
+    } else $('verifyMsg').textContent = '';
+    $('pickHint').textContent = '';
+    show('btnNext', true); show('btnLobby', true);
+    $('btnNext').textContent = m === o ? '재경기 (다시 배치)' : '한 판 더 (다시 배치)';
+    $('btnNext').onclick = () => gotoSetup();
+  }
+
+  // ================= 로비 =================
+  $('btnAI').onclick = () => { opp = makeAI($('diff').value); show('lobby', false); show('connBar', false); gotoSetup(); };
+  $('btnHost').onclick = hostRoom;
+  $('btnJoin').onclick = () => joinRoom($('joinCode').value);
+  $('joinCode').onkeydown = e => { if (e.key === 'Enter') joinRoom($('joinCode').value); };
+  $('btnCancel').onclick = () => { if (hostPeer) hostPeer.destroy(); hostPeer = null; show('waiting', false); show('lobby', true); };
+  $('btnCopyLink').onclick = async () => {
+    const url = location.href.split('?')[0].split('#')[0] + '?join=' + $('roomCode').textContent;
+    try { await navigator.clipboard.writeText(url); $('waitMsg').textContent = '링크를 복사했습니다. 상대에게 보내주세요'; }
+    catch (e) { $('waitMsg').textContent = url; }
+  };
+  $('btnLobby').onclick = () => { if (opp) opp.close(); opp = null; show('playArea', false); show('connBar', false); show('lobby', true); };
+
+  const qJoin = new URLSearchParams(location.search).get('join');
+  if (qJoin) { $('joinCode').value = qJoin; joinRoom(qJoin); }
+})();
+</script>
+</body>
+</html>

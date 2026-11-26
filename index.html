@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>데빌 게임즈</title>
+<style>
+  :root { --bg: #0f0f14; --panel: #1a1a22; --line: #2c2c38; --text: #ecebf2; --dim: #9a98a8; --accent: #d4a84a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 28px 16px 40px; }
+  h1 { margin: 0; font-size: 28px; } h1 span { color: var(--accent); }
+  p.sub { color: var(--dim); margin: 6px 0 22px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+  a.card { display: block; text-decoration: none; color: inherit; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 18px; transition: border-color .15s, transform .15s; }
+  a.card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .emoji { font-size: 30px; }
+  .card h2 { margin: 8px 0 4px; font-size: 19px; }
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 8px; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: #2a2a35; color: #cfcdd8; }
+  .tag.on { background: var(--accent); color: #1a1406; font-weight: 700; }
+  .card p { margin: 0; color: var(--dim); font-size: 14px; line-height: 1.55; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>데빌 <span>게임즈</span></h1>
+  <p class="sub">두뇌 서바이벌 예능에 나온 게임을 사내에서 즐길 수 있게 옮겨 왔습니다.</p>
+  <div class="grid">
+    <a class="card" href="gradation.html">
+      <div class="emoji">🎨</div><h2>그라데이션</h2>
+      <div class="tags"><span class="tag on">온라인 1:1</span><span class="tag">AI 연습</span></div>
+      <p>오름차순으로 넣은 숫자 통 7개로 겨루는 심리전입니다. 상대는 통의 색만 볼 수 있습니다.</p>
+    </a>
+    <a class="card" href="equation-signal.html">
+      <div class="emoji">🚦</div><h2>수식 신호등</h2>
+      <div class="tags"><span class="tag on">온라인 1:1</span><span class="tag">오늘의 문제</span><span class="tag">솔로</span></div>
+      <p>9칸짜리 비밀 수식을 추리합니다. 오늘의 문제로 댓글 순위를 겨루거나, 1:1로 서로의 수식을 맞혀 보세요.</p>
+    </a>
+    <a class="card" href="hit-stay.html">
+      <div class="emoji">🃏</div><h2>HIT, STAY</h2>
+      <div class="tags"><span class="tag on">온라인 2~5명</span><span class="tag">AI 솔로</span></div>
+      <p>포커식 베팅에 블랙잭식 합계 겨루기를 더한 게임입니다. 빈자리는 AI가 채우고, 칩이 떨어지면 탈락합니다.</p>
+    </a>
+    <a class="card" href="hidden-word.html">
+      <div class="emoji">🔍</div><h2>히든 워드</h2>
+      <div class="tags"><span class="tag on">온라인 2~6명</span><span class="tag">오늘의 문제</span><span class="tag">AI 유사도</span></div>
+      <p>AI가 계산한 단어 유사도를 단서로 숨겨진 명사를 맞힙니다. 직접 출제자가 되어 힌트를 낼 수도 있습니다.</p>
+    </a>
+  </div>
+</div>
+</body>
+</html>
