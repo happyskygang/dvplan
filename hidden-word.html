@@ -168,10 +168,12 @@
       fetch('data/hw-words.txt').then(r => { if (!r.ok) throw new Error('words'); return r.text(); }),
       fetch('data/hw-vecs.bin').then(async r => {
         if (!r.ok) throw new Error('vecs');
-        const total = +r.headers.get('content-length') || 0;
-        if (!r.body || !total) return new Int8Array(await r.arrayBuffer());
-        const buf = new Uint8Array(total); let got = 0; const rd = r.body.getReader();
-        for (;;) { const { done, value } = await rd.read(); if (done) break; buf.set(value, got); got += value.length; $('loadPct').textContent = Math.round(got / total * 100) + '%'; }
+        // gzip 전송 시 content-length는 압축 크기라서 버퍼 크기로 쓰면 안 됨 → 조각을 모았다가 합침
+        if (!r.body) return new Int8Array(await r.arrayBuffer());
+        const parts = []; let got = 0; const rd = r.body.getReader();
+        for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); got += value.length; $('loadPct').textContent = (got / 1048576).toFixed(1) + 'MB'; }
+        const buf = new Uint8Array(got); let off = 0;
+        for (const p of parts) { buf.set(p, off); off += p.length; }
         return new Int8Array(buf.buffer);
       }),
       fetch('data/hw-answers.txt').then(r => { if (!r.ok) throw new Error('answers'); return r.text(); }),
